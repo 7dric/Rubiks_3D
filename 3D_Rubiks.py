@@ -265,8 +265,8 @@ def rotation_face_animation(face, angle):
 
 
 def Hand_gesture():
-    global gesture
-
+    global gesture, end_thread
+    end_thread = False
     cap = cv2.VideoCapture(0)
 
     mpHands = mp.solutions.hands
@@ -274,7 +274,8 @@ def Hand_gesture():
     mpDraw = mp.solutions.drawing_utils
     Thumb_was_outside = True
     Pinky_was_outside = True
-    while (True):
+
+    while not end_thread:
         success, img = cap.read()
         img = cv2.flip(img, 1)
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -311,8 +312,7 @@ def Hand_gesture():
                         Pinky_was_outside = True
 
                     mpDraw.draw_landmarks(img, handlms[i], mpHands.HAND_CONNECTIONS)
-        #cv2.imshow("Image", img)
-        gesture = (xR, yR, rotation)
+        gesture = (xR, yR, rotation, img)
 
 
 def Mix_rubiks(k):
@@ -373,6 +373,8 @@ def solveur():
 
 
 def Main():
+    global vertices, edges, faces, rubiksColor
+
     rubiksColor_complete = np.zeros(shape=(6, 3, 3, 3))
     rubiksColor_complete[0] += np.array((1, 0, 0))  # RED
     rubiksColor_complete[1] += np.array((1, 0.5, 0))  # ORANGE
@@ -381,14 +383,13 @@ def Main():
     rubiksColor_complete[4] += np.array((1, 1, 1))  # WHITE
     rubiksColor_complete[5] += np.array((1, 1, 0))  # YELLOW
 
-    global vertices, edges, faces, rubiksColor
     vertices = np.array(
         ((-1, -1, -1), (-1, 1, -1), (-1, 1, 1), (-1, -1, 1), (1, -1, -1), (1, 1, -1), (1, 1, 1), (1, -1, 1)))
     edges = np.array(((0, 1), (0, 3), (0, 4), (1, 2), (1, 5), (2, 3), (2, 6), (3, 7), (4, 5), (4, 7), (5, 6), (6, 7)))
     faces = np.array(((0, 1, 2, 3), (4, 5, 6, 7), (0, 4, 7, 3), (1, 5, 6, 2), (1, 5, 4, 0), (2, 6, 7, 3)))
     rubiksColor = np.copy(rubiksColor_complete)
 
-    global gesture
+    global gesture, end_thread
     Detector_thread = Thread(target=Hand_gesture)
     Detector_thread.start()
 
@@ -407,7 +408,7 @@ def Main():
     glEnable(GL_DEPTH_TEST)
 
     xR0, yR0, cX, cY, angle = 0, 0, 0, 0, 0
-    gesture = (0, 0, "NO")
+    gesture = (0, 0, "NO", None)
     rotation_face = -1
 
     moove_buffer = list()
@@ -422,10 +423,12 @@ def Main():
             upFace = Upper_face(modelMatrix)
 
         # getting the thread value:
-        xR, yR, rotate = gesture
+        xR, yR, rotate, img = gesture
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                end_thread = True
+                Detector_thread.join(timeout=10)
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
@@ -505,12 +508,12 @@ def Main():
         glPopMatrix()
 
         pygame.display.flip()
-        pygame.time.wait(20)
+        pygame.time.wait(10)
         clock.tick()
         print(int(clock.get_fps()), "FPS")
+        if img is not None : cv2.imshow("Image", img)
 
 
 Main()
 
 # Grand merci mev pour l'idée
-
