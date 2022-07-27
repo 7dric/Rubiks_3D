@@ -512,6 +512,5 @@ def Main():
 
 Main()
 
-print("hello")
 # Grand merci mev pour l'idée
 
