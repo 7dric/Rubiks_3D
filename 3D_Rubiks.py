@@ -277,42 +277,45 @@ def Hand_gesture():
 
     while not end_thread:
         success, img = cap.read()
-        img = cv2.flip(img, 1)
-        imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        results = hands.process(imgRGB)
-        rotation = "NO"
-        xR, yR = 0, 0
+        if success:
+            img = cv2.flip(img, 1)
+            imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            results = hands.process(imgRGB)
+            rotation = "NO"
+            xR, yR = 0, 0
 
-        if results.multi_hand_landmarks:
-            handlms = results.multi_hand_landmarks
-            n_hands = len(handlms)
-            R = True
+            if results.multi_hand_landmarks:
+                handlms = results.multi_hand_landmarks
+                n_hands = len(handlms)
+                R = True
 
-            for i in range(n_hands):
-                if results.multi_handedness[i].classification[0].label == "Right" and R:
-                    R = False
-                    xR = handlms[i].landmark[8].x
-                    yR = handlms[i].landmark[8].y
-                    A = [handlms[i].landmark[0].x, handlms[i].landmark[0].y]
-                    B = [handlms[i].landmark[5].x, handlms[i].landmark[5].y]
-                    C = [handlms[i].landmark[18].x, handlms[i].landmark[18].y]
-                    Thumb = [handlms[i].landmark[4].x, handlms[i].landmark[4].y]
-                    Pinky = [handlms[i].landmark[20].x, handlms[i].landmark[20].y]
-                    if inside_triangle(A, B, C, Thumb):
-                        if Thumb_was_outside:
-                            Thumb_was_outside = False
-                            rotation = "RIGHT"
+                for i in range(n_hands):
+                    if results.multi_handedness[i].classification[0].label == "Right" and R:
+                        R = False
+                        xR = handlms[i].landmark[8].x
+                        yR = handlms[i].landmark[8].y
+                        A = [handlms[i].landmark[0].x, handlms[i].landmark[0].y]
+                        B = [handlms[i].landmark[5].x, handlms[i].landmark[5].y]
+                        C = [handlms[i].landmark[18].x, handlms[i].landmark[18].y]
+                        Thumb = [handlms[i].landmark[4].x, handlms[i].landmark[4].y]
+                        Pinky = [handlms[i].landmark[20].x, handlms[i].landmark[20].y]
+                        if inside_triangle(A, B, C, Thumb):
+                            if Thumb_was_outside:
+                                Thumb_was_outside = False
+                                rotation = "RIGHT"
 
-                    elif inside_triangle(A, B, C, Pinky):
-                        if Pinky_was_outside:
-                            Pinky_was_outside = False
-                            rotation = "LEFT"
-                    else:
-                        Thumb_was_outside = True
-                        Pinky_was_outside = True
+                        elif inside_triangle(A, B, C, Pinky):
+                            if Pinky_was_outside:
+                                Pinky_was_outside = False
+                                rotation = "LEFT"
+                        else:
+                            Thumb_was_outside = True
+                            Pinky_was_outside = True
 
-                    mpDraw.draw_landmarks(img, handlms[i], mpHands.HAND_CONNECTIONS)
+                        mpDraw.draw_landmarks(img, handlms[i], mpHands.HAND_CONNECTIONS)
+        else : img = None
         gesture = (xR, yR, rotation, img)
+        pygame.time.wait(5)
 
 
 def Mix_rubiks(k):
@@ -372,6 +375,12 @@ def solveur():
     return mooves
 
 
+def drawText(x, y, text):
+    textSurface = font.render(text, True, (255, 255, 66, 0)).convert_alpha()
+    textData = pygame.image.tostring(textSurface, "RGBA", True)
+    glWindowPos2d(x, y)
+    glDrawPixels(textSurface.get_width(), textSurface.get_height(), GL_RGBA, GL_UNSIGNED_BYTE, textData)
+
 def Main():
     global vertices, edges, faces, rubiksColor
 
@@ -393,9 +402,12 @@ def Main():
     Detector_thread = Thread(target=Hand_gesture)
     Detector_thread.start()
 
+
     pygame.init()
 
+    global font
     clock = pygame.time.Clock()
+    font = pygame.font.SysFont('arial', 64)
     screen = (800, 600)
 
     pygame.display.set_mode(screen, pygame.DOUBLEBUF | pygame.OPENGL | pygame.RESIZABLE | pygame.SCALED)
@@ -406,6 +418,8 @@ def Main():
     glMatrixMode(GL_MODELVIEW)
     modelMatrix = glGetFloatv(GL_MODELVIEW_MATRIX)
     glEnable(GL_DEPTH_TEST)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
     xR0, yR0, cX, cY, angle = 0, 0, 0, 0, 0
     gesture = (0, 0, "NO", None)
@@ -507,12 +521,13 @@ def Main():
 
         glPopMatrix()
 
+        text = str(int(clock.get_fps())) + "FPS"
+        drawText(20,20,text)
         pygame.display.flip()
-        pygame.time.wait(10)
-        clock.tick()
-        print(int(clock.get_fps()), "FPS")
+        #print(int(clock.get_fps()), "FPS")
         if img is not None : cv2.imshow("Image", img)
-
+        clock.tick()
+        pygame.time.wait(10)
 
 Main()
 
