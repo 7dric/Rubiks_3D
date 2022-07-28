@@ -7,6 +7,51 @@ import mediapipe as mp
 import numpy as np
 from rubik_solver import utils
 from threading import Thread
+from PIL import Image
+
+
+class ImageLoader:
+
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 0
+        self.height = 0
+        self.img_data = 0
+
+    def load(self, image):
+        im = image
+        tx_image = cv2.flip(im, 0)
+        tx_image = Image.fromarray(tx_image)
+        self.width = tx_image.size[0]
+        self.height = tx_image.size[1]
+        self.img_data = tx_image.tobytes('raw', 'BGRX', 0, -1)
+
+        self.Texture = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, self.Texture)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.width, self.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, self.img_data)
+
+    def draw(self):
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+        glTranslate(self.x, self.y, 0)
+
+        glEnable(GL_TEXTURE_2D)
+        glBegin(GL_QUADS)
+        glTexCoord2f(0, 0)
+        glVertex2f(0, 0)
+        glTexCoord2f(1, 0)
+        glVertex2f(self.width, 0)
+        glTexCoord2f(1, 1)
+        glVertex2f(self.width, self.height)
+        glTexCoord2f(0, 1)
+        glVertex2f(0, self.height)
+        glEnd()
+        glDisable(GL_TEXTURE_2D)
 
 
 def Cube(vertices, edges, faces, faces_color, vertice_color=(0, 0, 0), linewidth=4):
@@ -312,7 +357,7 @@ def Hand_gesture():
                             Thumb_was_outside = True
                             Pinky_was_outside = True
 
-                        mpDraw.draw_landmarks(img, handlms[i], mpHands.HAND_CONNECTIONS)
+                        #mpDraw.draw_landmarks(img, handlms[i], mpHands.HAND_CONNECTIONS)
         else : img = None
         gesture = (xR, yR, rotation, img)
         pygame.time.wait(5)
@@ -412,14 +457,16 @@ def Main():
 
     pygame.display.set_mode(screen, pygame.DOUBLEBUF | pygame.OPENGL | pygame.RESIZABLE | pygame.SCALED)
     pygame.display.set_caption("7dric Rubik's Cube")
+
+    im_loader = ImageLoader(0, 0)
+
     glMatrixMode(GL_PROJECTION)
     gluPerspective(45, (screen[0] / screen[1]), 0.1, 500)
-
     glMatrixMode(GL_MODELVIEW)
     modelMatrix = glGetFloatv(GL_MODELVIEW_MATRIX)
-    glEnable(GL_DEPTH_TEST)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glClearColor(0.1, 0.1, 0.2, 1)
 
     xR0, yR0, cX, cY, angle = 0, 0, 0, 0, 0
     gesture = (0, 0, "NO", None)
@@ -471,9 +518,19 @@ def Main():
         if np.abs(cY) < 1:
             cY = 0
 
-        glClearColor(0.1, 0.1, 0.2, 1)
+        #clear the screen
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
+        # diplay backround img
+        glDisable(GL_DEPTH_TEST)
+        if img is not None:
+            im_loader.load(img)
+        glColor3f(1, 1, 1)
+        im_loader.draw()
+
+        # 3D rendering
+        glEnable(GL_DEPTH_TEST)
         glRotatef(cX, 0, 1, 0)  # on applique les rotations a la matrice du gl
         glRotatef(cY, 1, 0, 0)
 
@@ -519,13 +576,15 @@ def Main():
         glMultMatrixf(modelMatrix2)
         DrawUpperCube(upFace)  # on dessine la partie supérieur du rubiks
 
+
+
         glPopMatrix()
 
         text = str(int(clock.get_fps())) + "FPS"
         drawText(20,20,text)
         pygame.display.flip()
         #print(int(clock.get_fps()), "FPS")
-        if img is not None : cv2.imshow("Image", img)
+
         clock.tick()
         pygame.time.wait(10)
 
