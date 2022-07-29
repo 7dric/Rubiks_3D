@@ -333,6 +333,10 @@ class rubiks_display:
 
     def DrawRubiks(self):
         glEnable(GL_DEPTH_TEST)
+
+        glPushMatrix()
+        glLoadIdentity()
+
         glRotatef(self.cX, 0, 1, 0)  # on applique les rotations a la matrice du gl
         glRotatef(self.cY, 1, 0, 0)
 
@@ -432,7 +436,7 @@ class rubiks_display:
         return upper_faces_id[index_upper]
 
     def in_animation(self):
-        return len(self.moove_buffer) > 0 or self.rotate != "NO"
+        return len(self.moove_buffer) > 0 or self.rotate != "NO" or np.abs(self.angle)>0
 
 
 class hand_gesture:
@@ -536,10 +540,6 @@ def main():
 
     while True:
 
-        glPushMatrix()
-        glLoadIdentity()
-
-        # TODO define rotation face quand buffer vide
 
         # getting the thread value:
         x, y, rotate, img = Hand.gesture
