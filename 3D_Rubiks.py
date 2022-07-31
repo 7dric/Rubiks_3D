@@ -3,11 +3,11 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
-import cv2
 import mediapipe as mp
 import numpy as np
 from rubik_solver import utils
 from threading import Thread
+import pygame.camera
 
 
 class backround:
@@ -229,7 +229,7 @@ class rubiks:
 
 class rubiks_display:
 
-    def __init__(self, Rubiks):
+    def __init__(self, Rubiks,modelMatrix,screen):
         self.Rubiks = Rubiks
         self.vertices = np.array(
             ((-1, -1, -1), (-1, 1, -1), (-1, 1, 1), (-1, -1, 1), (1, -1, -1), (1, 1, -1), (1, 1, 1), (1, -1, 1)))
@@ -243,7 +243,10 @@ class rubiks_display:
         self.rotate = "NO"
         self.x0, self.y0, self.cX, self.cY = 0, 0, 0, 0
         self.upFace = 1
-        self.modelMatrix = 0
+        self.modelMatrix = modelMatrix
+        self.screen = screen
+        self.speed = 80
+        self.inertia = 15
 
     def Cube(self, offset, faces_color, vertice_color=(0, 0, 0), linewidth=4):
         glBegin(GL_QUADS)
@@ -332,6 +335,7 @@ class rubiks_display:
                         self.Cube(offset, faces_color, (0.7, 0.7, 0.7), 7)
 
     def DrawRubiks(self):
+
         glEnable(GL_DEPTH_TEST)
 
         glPushMatrix()
@@ -406,14 +410,14 @@ class rubiks_display:
 
     def Controls(self, x, y, rotate):
         self.rotate = rotate
-        self.cX += (x - self.x0) * 70 - self.cX / 10
-        self.cY += (y - self.y0) * 70 - self.cY / 10
+        self.cX += (x - self.x0) * self.speed - self.cX / self.inertia
+        self.cY += (y - self.y0) * self.speed - self.cY / self.inertia
         self.x0 = x
         self.y0 = y
 
-        if np.abs(self.cX) < 1:
+        if np.abs(self.cX) < 0.3:
             self.cX = 0
-        if np.abs(self.cY) < 1:
+        if np.abs(self.cY) < 0.3:
             self.cY = 0
 
     def Upper_face(self):
@@ -456,72 +460,67 @@ class hand_gesture:
             else:
                 return False
 
-        cap = cv2.VideoCapture(0)
-
         mpHands = mp.solutions.hands
         hands = mpHands.Hands()
-        mpDraw = mp.solutions.drawing_utils
+        mpDraw = mp.solutions.drawing_utils.draw_landmarks
         Thumb_was_outside = True
         Pinky_was_outside = True
 
+        pygame.camera.init()
+        camlist = pygame.camera.list_cameras()
+        cam = pygame.camera.Camera(camlist[0], (640, 480))
+        cam.start()
         while not self.end_thread:
-            success, img = cap.read()
-            if success:
-                img = cv2.flip(img, 1)
-                imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                results = hands.process(imgRGB)
-                rotation = "NO"
-                xR, yR = 0, 0
+            img = cam.get_image()
+            img = pygame.transform.rotate(img,90)
+            imgRGB = pygame.surfarray.pixels3d(img)
+            results = hands.process(imgRGB)
+            rotation = "NO"
+            xR, yR = 0, 0
 
-                if results.multi_hand_landmarks:
-                    handlms = results.multi_hand_landmarks
-                    n_hands = len(handlms)
-                    R = True
+            if results.multi_hand_landmarks:
+                handlms = results.multi_hand_landmarks
+                n_hands = len(handlms)
+                R = True
 
-                    for i in range(n_hands):
-                        if results.multi_handedness[i].classification[0].label == "Right" and R:
-                            R = False
-                            xR = handlms[i].landmark[9].x
-                            yR = handlms[i].landmark[9].y
-                            A = [handlms[i].landmark[0].x, handlms[i].landmark[0].y]
-                            B = [handlms[i].landmark[5].x, handlms[i].landmark[5].y]
-                            C = [handlms[i].landmark[18].x, handlms[i].landmark[18].y]
-                            Thumb = [handlms[i].landmark[4].x, handlms[i].landmark[4].y]
-                            Pinky = [handlms[i].landmark[20].x, handlms[i].landmark[20].y]
-                            if inside_triangle(A, B, C, Thumb):
-                                if Thumb_was_outside:
-                                    Thumb_was_outside = False
-                                    rotation = "RIGHT"
+                for i in range(n_hands):
+                    if results.multi_handedness[i].classification[0].label == "Right" and R:
+                        R = False
+                        xR = handlms[i].landmark[9].x
+                        yR = handlms[i].landmark[9].y
+                        A = [handlms[i].landmark[0].x, handlms[i].landmark[0].y]
+                        B = [handlms[i].landmark[5].x, handlms[i].landmark[5].y]
+                        C = [handlms[i].landmark[18].x, handlms[i].landmark[18].y]
+                        Thumb = [handlms[i].landmark[4].x, handlms[i].landmark[4].y]
+                        Pinky = [handlms[i].landmark[20].x, handlms[i].landmark[20].y]
+                        if inside_triangle(A, B, C, Thumb):
+                            if Thumb_was_outside:
+                                Thumb_was_outside = False
+                                rotation = "RIGHT"
 
 
-                            elif inside_triangle(A, B, C, Pinky):
-                                if Pinky_was_outside:
-                                    Pinky_was_outside = False
-                                    rotation = "LEFT"
-                            else:
-                                Thumb_was_outside = True
-                                Pinky_was_outside = True
+                        elif inside_triangle(A, B, C, Pinky):
+                            if Pinky_was_outside:
+                                Pinky_was_outside = False
+                                rotation = "LEFT"
+                        else:
+                            Thumb_was_outside = True
+                            Pinky_was_outside = True
 
-                            mpDraw.draw_landmarks(img, handlms[i], mpHands.HAND_CONNECTIONS)
-            else:
-                img = None
-            self.gesture = (xR, yR, rotation, img)
+                        #mpDraw.draw_landmarks(imgRGB, handlms[i], mpHands.HAND_CONNECTIONS)
+
+            self.gesture = (xR, yR, rotation, imgRGB)
             pygame.time.wait(5)
 
 
 def main():
-    pygame.init()
-
-    Rubiks = rubiks()
-    Rubiks_display = rubiks_display(Rubiks)
 
     Hand = hand_gesture()
-
     Detector_thread = Thread(target=Hand.Detection)
     Detector_thread.start()
 
+    pygame.init()
     clock = pygame.time.Clock()
-
     display = pygame.display.set_mode((800, 600), DOUBLEBUF | OPENGL | RESIZABLE | SCALED)
     screen = display.get_size()
     pygame.display.set_caption("7dric Rubik's Cube")
@@ -529,17 +528,19 @@ def main():
     glMatrixMode(GL_PROJECTION)
     gluPerspective(45, (screen[0] / screen[1]), 0.1, 500)
     glMatrixMode(GL_MODELVIEW)
-    Rubiks_display.modelMatrix = glGetFloatv(GL_MODELVIEW_MATRIX)
+    modelMatrix = glGetFloatv(GL_MODELVIEW_MATRIX)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     glOrtho(0, screen[0], screen[1], 0, 1, -1)
     glEnable(GL_TEXTURE_2D)
     glClearColor(0.1, 0.1, 0.2, 1)
 
+    Rubiks = rubiks()
+    Rubiks_display = rubiks_display(Rubiks,modelMatrix,screen)
+
     Backround = backround(screen)
 
     while True:
-
 
         # getting the thread value:
         x, y, rotate, img = Hand.gesture
@@ -582,7 +583,7 @@ def main():
         Backround.drawText(20, 20, text)
 
         pygame.display.flip()
-        # if img is not None : cv2.imshow("Webcam",img)
+        #if img is not None : Backround.draw(img) #cv2.imshow("Webcam",img)
         clock.tick()
         pygame.time.wait(5)
 
