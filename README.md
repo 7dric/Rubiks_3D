@@ -7,9 +7,9 @@ This program display a Rubik's Cube wich can be controlled by using your **LEFT 
 - **mixing the rubiks** : press the **"m" key**
 - **solving the rubiks** : press the **"s" key**
 - **reset the rubiks** : press the **"r" key**
-
+- **change the view mode** : press the **"c" key**
 ## Libraries :
-To be able to run this program you need to have thoose python libraies on your computer: 
+To be able to run this program you need to install thoose python libraies on your computer: 
 
 - pygame
 - OpenGL
