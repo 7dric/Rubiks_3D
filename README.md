@@ -1,8 +1,8 @@
-# 7dric's Rubik's Cube hand controlled
+# 3D hand controlled Rubik's Cube
 
 ## Features of the program:
-This program display a Rubik's Cube wich can be controlled by using your **LEFT Hand** in front of your webcam. 
-- **Rotation of the cube** : moove your hand up and down for an X axis rotation and Left or Right for an Y axis Rotation (There is no depht control on the Z axis). 
+This program display a Rubik's Cube witch can be controlled by using your **LEFT Hand** in front of your webcam. 
+- **Rotation of the cube** : move your hand up and down for an X axis rotation and Left or Right for an Y axis Rotation (There is no depht control on the Z axis). 
 - **Rotation of a face** : use either your keyboard with the **LEFT/RIGHT arrows** or either place your **thumb/pinky in the palm of your LEFT hand**
 - **mixing the rubiks** : press the **"m" key**
 - **solving the rubiks** : press the **"s" key**
