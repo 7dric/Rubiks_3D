@@ -15,37 +15,43 @@ class backround:
         self.display = display
         self.textureID = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.textureID)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-        glBindTexture(GL_TEXTURE_2D, 0)
         self.font = pygame.font.SysFont('arial', 64)
 
     def draw(self, frame):
+        glDisable(GL_DEPTH_TEST)
         glEnable(GL_TEXTURE_2D)
-        # glLoadIdentity()
-        frame = cv2.resize(frame, self.display, interpolation=cv2.INTER_AREA)
+        glLoadIdentity()
+        glTranslatef(-1.2, 0.48, -3)
+        ratio = frame.shape[0] / frame.shape[1]
+
+        frame = cv2.flip(frame, 0)
+
+        frame = cv2.resize(frame, (self.display[0], int(self.display[0] * ratio)), interpolation=cv2.INTER_AREA)
         # Copy the frame from the webcam into the sender texture
         glBindTexture(GL_TEXTURE_2D, self.textureID)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.display[0], self.display[1], 0, GL_RGB, GL_UNSIGNED_BYTE, frame)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA, int(self.display[0]), int(self.display[0] * ratio), 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, frame)
 
         # Draw texture to screen
         glBegin(GL_QUADS)
 
+        a, b, c, d = -1, -1, 1, 1
         glTexCoord(0, 0)
-        glVertex2f(0, 0)
+        glVertex2f(a, b * ratio)
 
         glTexCoord(1, 0)
-        glVertex2f(self.display[0] / 2, 0)
+        glVertex2f(c, b * ratio)
 
         glTexCoord(1, 1)
-        glVertex2f(self.display[0] / 2, self.display[1] / 2)
+        glVertex2f(c, d * ratio)
 
         glTexCoord(0, 1)
-        glVertex2f(0, self.display[1] / 2)
+        glVertex2f(a, d * ratio)
+
         glEnd()
         glDisable(GL_TEXTURE_2D)
+
 
     def drawText(self, x, y, text):
         textSurface = self.font.render(text, True, (255, 255, 66, 0)).convert_alpha()
@@ -232,6 +238,7 @@ class hand_gesture:
     def __init__(self):
         self.gesture = (0, 0, "NO", None)
         self.end_thread = False
+        self.imgMode = 0
 
     def Detection(self):
 
@@ -258,6 +265,10 @@ class hand_gesture:
                 img = cv2.flip(img, 1)
                 imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 results = hands.process(imgRGB)
+
+                if self.imgMode == 1:
+                    imgRGB = np.zeros(imgRGB.shape, dtype=np.uint8)
+
                 rotation = "NO"
                 xR, yR = 0, 0
 
@@ -265,41 +276,50 @@ class hand_gesture:
                     handlms = results.multi_hand_landmarks
                     n_hands = len(handlms)
                     R = True
-
                     for i in range(n_hands):
-                        if results.multi_handedness[i].classification[0].label == "Right" and R:
-                            R = False
-                            xR = handlms[i].landmark[9].x
-                            yR = handlms[i].landmark[9].y
-                            A = [handlms[i].landmark[0].x, handlms[i].landmark[0].y]
-                            B = [handlms[i].landmark[5].x, handlms[i].landmark[5].y]
-                            C = [handlms[i].landmark[18].x, handlms[i].landmark[18].y]
-                            Thumb = [handlms[i].landmark[4].x, handlms[i].landmark[4].y]
-                            Pinky = [handlms[i].landmark[20].x, handlms[i].landmark[20].y]
-                            if inside_triangle(A, B, C, Thumb):
-                                if Thumb_was_outside:
-                                    Thumb_was_outside = False
-                                    rotation = "RIGHT"
+                        if results.multi_handedness[i].classification[0].label == "Right":
+                            if R:
+                                R = False
+                                xR = handlms[i].landmark[9].x
+                                yR = handlms[i].landmark[9].y
+                                A = [handlms[i].landmark[0].x, handlms[i].landmark[0].y]
+                                B = [handlms[i].landmark[5].x, handlms[i].landmark[5].y]
+                                C = [handlms[i].landmark[18].x, handlms[i].landmark[18].y]
+                                Thumb = [handlms[i].landmark[4].x, handlms[i].landmark[4].y]
+                                Pinky = [handlms[i].landmark[20].x, handlms[i].landmark[20].y]
+                                if inside_triangle(A, B, C, Thumb):
+                                    if Thumb_was_outside:
+                                        Thumb_was_outside = False
+                                        rotation = "RIGHT"
 
+                                elif inside_triangle(A, B, C, Pinky):
+                                    if Pinky_was_outside:
+                                        Pinky_was_outside = False
+                                        rotation = "LEFT"
+                                else:
+                                    Thumb_was_outside = True
+                                    Pinky_was_outside = True
 
-                            elif inside_triangle(A, B, C, Pinky):
-                                if Pinky_was_outside:
-                                    Pinky_was_outside = False
-                                    rotation = "LEFT"
-                            else:
-                                Thumb_was_outside = True
-                                Pinky_was_outside = True
+                            if self.imgMode < 2:
+                                mpDraw.draw_landmarks(imgRGB, handlms[i], mpHands.HAND_CONNECTIONS)
 
-                            mpDraw.draw_landmarks(img, handlms[i], mpHands.HAND_CONNECTIONS)
+                if self.imgMode == 1:
+                    alpha = np.sum(imgRGB, axis=-1) > 0
+                    alpha = np.uint8(alpha * 255)
+                    imgRGB = np.dstack((imgRGB, alpha))
+
+                else:
+                    alpha = np.uint8(np.ones(shape=imgRGB.shape[:2]) * 255)
+                    imgRGB = np.dstack((imgRGB, alpha))
             else:
-                img = None
-            self.gesture = (xR, yR, rotation, img)
+                imgRGB = None
+            self.gesture = (xR, yR, rotation, imgRGB)
             pygame.time.wait(5)
 
 
 class rubiks_display:
 
-    def __init__(self, Rubiks,modelMatrix,screen):
+    def __init__(self, Rubiks, modelMatrix, screen):
         self.Rubiks = Rubiks
         self.vertices = np.array(
             ((-1, -1, -1), (-1, 1, -1), (-1, 1, 1), (-1, -1, 1), (1, -1, -1), (1, 1, -1), (1, 1, 1), (1, -1, 1)))
@@ -407,11 +427,10 @@ class rubiks_display:
 
     def DrawRubiks(self):
 
-        glEnable(GL_DEPTH_TEST)
 
-        glPushMatrix()
         glLoadIdentity()
 
+        glEnable(GL_DEPTH_TEST)
         glRotatef(self.cX, 0, 1, 0)  # on applique les rotations a la matrice du gl
         glRotatef(self.cY, 1, 0, 0)
 
@@ -422,8 +441,6 @@ class rubiks_display:
 
         glTranslatef(0, 0, -20)
         glMultMatrixf(self.modelMatrix)
-
-        glEnable(GL_DEPTH_TEST)
 
         upFace = self.rotation_face
         if not self.in_animation():
@@ -511,18 +528,17 @@ class rubiks_display:
         return upper_faces_id[index_upper]
 
     def in_animation(self):
-        return len(self.moove_buffer) > 0 or self.rotate != "NO" or np.abs(self.angle)>0
+        return len(self.moove_buffer) > 0 or self.rotate != "NO" or np.abs(self.angle) > 0
 
 
 def main():
-
     Hand = hand_gesture()
     Detector_thread = Thread(target=Hand.Detection)
     Detector_thread.start()
 
     pygame.init()
     clock = pygame.time.Clock()
-    display = pygame.display.set_mode((800, 600), DOUBLEBUF | OPENGL | RESIZABLE | SCALED)
+    display = pygame.display.set_mode((0, 0), DOUBLEBUF | OPENGL | FULLSCREEN)
     screen = display.get_size()
     pygame.display.set_caption("7dric Rubik's Cube")
 
@@ -532,12 +548,13 @@ def main():
     modelMatrix = glGetFloatv(GL_MODELVIEW_MATRIX)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-    glOrtho(0, screen[0], screen[1], 0, 1, -1)
+    
+
     glEnable(GL_TEXTURE_2D)
     glClearColor(0.1, 0.1, 0.2, 1)
 
     Rubiks = rubiks()
-    Rubiks_display = rubiks_display(Rubiks,modelMatrix,screen)
+    Rubiks_display = rubiks_display(Rubiks, modelMatrix, screen)
 
     Backround = backround(screen)
 
@@ -558,23 +575,37 @@ def main():
             elif event.type == pygame.VIDEORESIZE:
                 screen = [event.w, event.h]
 
-            elif event.type == pygame.KEYDOWN and not Rubiks_display.in_animation():
-                if event.key == pygame.K_r:
+            elif event.type == pygame.KEYDOWN :
+
+                if event.key == pygame.K_ESCAPE:
+                    Hand.end_thread = True
+                    Detector_thread.join(timeout=10)
+                    pygame.quit()
+                    sys.exit()
+
+                elif event.key == pygame.K_r and not Rubiks_display.in_animation():
                     Rubiks.reset()
 
-                elif event.key == pygame.K_RIGHT:
+                elif event.key == pygame.K_c :
+                    Hand.imgMode = (Hand.imgMode + 1) % 3
+
+                elif event.key == pygame.K_RIGHT and not Rubiks_display.in_animation() :
                     Rubiks_display.rotate = "RIGHT"
 
-                elif event.key == pygame.K_LEFT:
+                elif event.key == pygame.K_LEFT and not Rubiks_display.in_animation():
                     Rubiks_display.rotate = "LEFT"
 
-                elif event.key == pygame.K_m:
+                elif event.key == pygame.K_m and not Rubiks_display.in_animation():
                     Rubiks_display.moove_buffer = Rubiks.Mix_rubiks(40)
 
-                elif event.key == pygame.K_s:
+                elif event.key == pygame.K_s and not Rubiks_display.in_animation():
                     Rubiks_display.moove_buffer = Rubiks.Solveur()
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        glPushMatrix()
+
+        if img is not None:
+            Backround.draw(img)
 
         Rubiks_display.DrawRubiks()
 
@@ -584,7 +615,6 @@ def main():
         Backround.drawText(20, 20, text)
 
         pygame.display.flip()
-        #if img is not None : Backround.draw(img) #cv2.imshow("Webcam",img)
         pygame.time.wait(5)
         clock.tick()
 
