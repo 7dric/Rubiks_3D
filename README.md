@@ -1,7 +1,7 @@
 # 3D hand controlled Rubik's Cube
 
 ## Features of the program:
-This program display a Rubik's Cube witch can be controlled by using your **LEFT Hand** in front of your webcam. 
+This program display a Rubik's Cube wich can be controlled by using your **LEFT Hand** in front of your webcam. 
 - **Rotation of the cube** : move your hand up and down for an X axis rotation and Left or Right for an Y axis Rotation (There is no depht control on the Z axis). 
 - **Rotation of a face** : use either your keyboard with the **LEFT/RIGHT arrows** or either place your **thumb/pinky in the palm of your LEFT hand**
 - **mixing the rubiks** : press the **"m" key**
@@ -9,7 +9,7 @@ This program display a Rubik's Cube witch can be controlled by using your **LEFT
 - **reset the rubiks** : press the **"r" key**
 - **change the view mode** : press the **"c" key**
 ## Libraries :
-To be able to run this program you need to install thoose python libraies on your computer: 
+To be able to run this program you need to have python3 and thoose python libraies on your computer: 
 
 - pygame
 - OpenGL
